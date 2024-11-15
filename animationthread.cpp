@@ -6,7 +6,7 @@
 //перемещение костей в соответсвии с новыми координатами
 //-----------------------------------
 AnimationThread::AnimationThread(QObject* parent)
-    : QObject(parent), timer(new QTimer(this)), numBones(0)
+    : QObject(parent), timer(new QTimer(this)), numBones(0), deltaTime(0.2f)
 {
     connect(timer, &QTimer::timeout, this, &AnimationThread::readNextData);
 }
@@ -14,6 +14,11 @@ AnimationThread::AnimationThread(QObject* parent)
 AnimationThread::~AnimationThread()
 {
     stop();
+}
+
+void AnimationThread::setDeltaTime(float delta)
+{
+    deltaTime = delta;
 }
 
 void AnimationThread::startReadFile(const QString &filePath, int timeout)
@@ -31,6 +36,7 @@ void AnimationThread::startReadFile(const QString &filePath, int timeout)
 
     bonePos.clear();
     boneRotate.clear();
+    prevSpeed.clear();
 
     QString firstLine = dataFile.readLine().trimmed();
     bool ok;
@@ -44,6 +50,7 @@ void AnimationThread::startReadFile(const QString &filePath, int timeout)
 
     bonePos.resize(numBones);
     boneRotate.resize(numBones);
+    prevSpeed.resize(numBones, QVector3D(0, 0, 0));
 
     timer->start(timeout);
 }
@@ -64,14 +71,14 @@ void AnimationThread::readNextData()
     }
 
     for (int i = 0; i < numBones; ++i) {
-        QString line = dataFile.readLine().trimmed();  // Читаем строку и удаляем лишние пробелы
+        QString line = dataFile.readLine().trimmed();
 
         if (line.isEmpty()) {
             emit readerError("Empty line for bone " + QString::number(i));
             return;
         }
 
-        QStringList values = line.split(' ', Qt::SkipEmptyParts);  // Разбиваем строку по пробелам
+        QStringList values = line.split(' ', Qt::SkipEmptyParts);
 
         if (values.size() < 6) {
             emit readerError("Incorrect data format for bone " + QString::number(i));
@@ -79,15 +86,19 @@ void AnimationThread::readNextData()
         }
 
         bool ok;
-        float xPos = values[0].toFloat(&ok);  if (!ok) { emit readerError("Invalid xPos"); return; }
-        float yPos = values[1].toFloat(&ok);  if (!ok) { emit readerError("Invalid yPos"); return; }
-        float zPos = values[2].toFloat(&ok);  if (!ok) { emit readerError("Invalid zPos"); return; }
+        float ax = values[0].toFloat(&ok);  if (!ok) { emit readerError("Invalid ax"); return; }
+        float ay = values[1].toFloat(&ok);  if (!ok) { emit readerError("Invalid ay"); return; }
+        float az = values[2].toFloat(&ok);  if (!ok) { emit readerError("Invalid az"); return; }
         float xRot = values[3].toFloat(&ok);  if (!ok) { emit readerError("Invalid xRot"); return; }
         float yRot = values[4].toFloat(&ok);  if (!ok) { emit readerError("Invalid yRot"); return; }
         float zRot = values[5].toFloat(&ok);  if (!ok) { emit readerError("Invalid zRot"); return; }
 
-        bonePos[i] = QVector3D(xPos, yPos, zPos);
+        QVector3D newSpeed = prevSpeed[i] + QVector3D(ax, ay, az) * deltaTime;
+
+        bonePos[i] = bonePos[i] + newSpeed * deltaTime;
         boneRotate[i] = QVector3D(xRot, yRot, zRot);
+
+        prevSpeed[i] = newSpeed;
     }
 
     emit refreshAnim(bonePos, boneRotate);

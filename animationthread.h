@@ -17,6 +17,8 @@ public:
     AnimationThread(QObject* parent = nullptr);
     ~AnimationThread();
 
+    void setDeltaTime(float delta);
+
 signals:
     void refreshAnim(QVector<QVector3D> bonePos, QVector<QVector3D> boneRotate);
     void readerError(QString err);
@@ -32,8 +34,10 @@ private:
     QTimer* timer;
     QVector<QVector3D> bonePos;
     QVector<QVector3D> boneRotate;
+    QVector<QVector3D> prevSpeed;
     QFile dataFile;
     int numBones;
+    float deltaTime;
 };
 
 #endif // ANIMATIONTHREAD_H
